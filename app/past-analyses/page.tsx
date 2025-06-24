@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -44,79 +44,32 @@ interface Analysis {
   failed: number
 }
 
-const pastAnalyses: Analysis[] = [
-  {
-    id: 1,
-    title: "Font-end Web Developer ||",
-    date: "2024-01-15",
-    candidatesCount: 90,
-    topScore: 94,
-    averageScore: 76,
-    status: "completed",
-    highMatches: 43,
-    mediumMatches: 27,
-    lowMatches: 20,
-    jobDescription: "Looking for a senior frontend developer with 5+ years experience in React and TypeScript...",
-    assessmentScheduled: 43,
-    passed: 20,
-    failed: 27,
-  },
-  {
-    id: 2,
-    title: "Senior UI/UX Designer",
-    date: "2024-01-10",
-    candidatesCount: 109,
-    topScore: 87,
-    averageScore: 71,
-    status: "completed",
-    highMatches: 39,
-    mediumMatches: 36,
-    lowMatches: 34,
-    jobDescription: "Seeking an experienced UI/UX designer with strong portfolio and design system experience...",
-    assessmentScheduled: 39,
-    passed: 24,
-    failed: 36,
-  },
-  {
-    id: 3,
-    title: "UX Content Writer |",
-    date: "2024-01-05",
-    candidatesCount: 120,
-    topScore: 91,
-    averageScore: 68,
-    status: "completed",
-    highMatches: 48,
-    mediumMatches: 24,
-    lowMatches: 48,
-    jobDescription: "UX content writer role focusing on creating compelling user-centered content...",
-    assessmentScheduled: 48,
-    passed: 15,
-    failed: 24,
-  },
-  {
-    id: 4,
-    title: "Content Strategist",
-    date: "2024-01-02",
-    candidatesCount: 85,
-    topScore: 89,
-    averageScore: 73,
-    status: "completed",
-    highMatches: 32,
-    mediumMatches: 28,
-    lowMatches: 25,
-    jobDescription: "Content strategist with expertise in digital marketing and brand storytelling...",
-    assessmentScheduled: 32,
-    passed: 18,
-    failed: 28,
-  },
-]
-
 export default function PastAnalyses() {
+  const [analyses, setAnalyses] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [sortBy, setSortBy] = useState("date-desc")
 
-  const filteredAnalyses = pastAnalyses
+  useEffect(() => {
+    const fetchAnalyses = async () => {
+      setIsLoading(true)
+      try {
+        const res = await fetch("/api/analysis/list", { credentials: "include" })
+        const data = await res.json()
+        if (data.success) {
+          setAnalyses(data.analyses)
+        }
+      } catch (e) {
+        // Optionally handle error
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchAnalyses()
+  }, [])
+
+  const filteredAnalyses = analyses
     .filter((analysis) => {
       const matchesSearch = analysis.title.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesStatus = statusFilter === "all" || analysis.status === statusFilter
@@ -125,17 +78,17 @@ export default function PastAnalyses() {
     .sort((a, b) => {
       switch (sortBy) {
         case "date-desc":
-          return new Date(b.date).getTime() - new Date(a.date).getTime()
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         case "date-asc":
-          return new Date(a.date).getTime() - new Date(b.date).getTime()
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         case "candidates-desc":
-          return b.candidatesCount - a.candidatesCount
+          return b.candidates.length - a.candidates.length
         case "candidates-asc":
-          return a.candidatesCount - b.candidatesCount
+          return a.candidates.length - b.candidates.length
         case "score-desc":
-          return b.topScore - a.topScore
+          return b.statistics.topScore - a.statistics.topScore
         case "score-asc":
-          return a.topScore - b.topScore
+          return a.statistics.topScore - b.statistics.topScore
         default:
           return 0
       }
@@ -298,124 +251,129 @@ export default function PastAnalyses() {
 
           {/* Analyses List */}
           <div className="grid gap-6">
-            {filteredAnalyses.map((analysis) => (
-              <Card key={analysis.id} className="shadow-lg border-0 hover:shadow-xl transition-all duration-300">
-                <CardHeader>
-                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <CardTitle className="text-xl text-gray-900">{analysis.title}</CardTitle>
-                        <Badge className={`${getStatusColor(analysis.status)} flex items-center gap-1 border`}>
-                          {getStatusIcon(analysis.status)}
-                          {analysis.status}
-                        </Badge>
+            {filteredAnalyses.map((analysis) => {
+              // Use real backend fields
+              const candidateCount = analysis.candidates ? analysis.candidates.length : 0;
+              const stats = analysis.statistics || {};
+              // Compute assessmentScheduled, passed, failed from candidates if not present
+              let assessmentScheduled = 0, passed = 0, failed = 0;
+              if (analysis.candidates) {
+                for (const c of analysis.candidates) {
+                  if (c.status === "assessment-scheduled") assessmentScheduled++;
+                  else if (c.status === "passed") passed++;
+                  else if (c.status === "failed") failed++;
+                }
+              }
+              return (
+                <Card key={analysis._id || analysis.id} className="shadow-lg border-0 hover:shadow-xl transition-all duration-300">
+                  <CardHeader>
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <CardTitle className="text-xl text-gray-900">{analysis.title}</CardTitle>
+                          <Badge className={`${getStatusColor(analysis.status)} flex items-center gap-1 border`}>
+                            {getStatusIcon(analysis.status)}
+                            {analysis.status}
+                          </Badge>
+                        </div>
+                        <CardDescription className="flex items-center gap-4 text-gray-600">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4" />
+                            Created: {analysis.createdAt ? new Date(analysis.createdAt).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" }) : "-"}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4" />
+                            Total Applied: {candidateCount}
+                          </div>
+                        </CardDescription>
                       </div>
-                      <CardDescription className="flex items-center gap-4 text-gray-600">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          Open Till:{" "}
-                          {new Date(analysis.date).toLocaleDateString("en-US", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4" />
-                          Total Applied: {analysis.candidatesCount}
-                        </div>
-                      </CardDescription>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="hover:bg-gray-100">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => viewAnalysis(analysis)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Results
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => exportAnalysis(analysis)}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Export PDF
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => duplicateAnalysis(analysis)}>
+                            <FileText className="mr-2 h-4 w-4" />
+                            Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => deleteAnalysis(analysis)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="hover:bg-gray-100">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => viewAnalysis(analysis)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Results
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => exportAnalysis(analysis)}>
-                          <Download className="mr-2 h-4 w-4" />
-                          Export PDF
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => duplicateAnalysis(analysis)}>
-                          <FileText className="mr-2 h-4 w-4" />
-                          Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => deleteAnalysis(analysis)}
-                          className="text-red-600 hover:text-red-700"
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {/* Progress Bars */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            Assessment Scheduled: {assessmentScheduled} ({candidateCount ? Math.round((assessmentScheduled / candidateCount) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <Progress value={candidateCount ? (assessmentScheduled / candidateCount) * 100 : 0} className="h-2" />
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            Failed: {failed} ({candidateCount ? Math.round((failed / candidateCount) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <Progress value={candidateCount ? (failed / candidateCount) * 100 : 0} className="h-2" />
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            Passed: {passed} ({candidateCount ? Math.round((passed / candidateCount) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <Progress value={candidateCount ? (passed / candidateCount) * 100 : 0} className="h-2" />
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap gap-3 pt-2">
+                        <Button
+                          onClick={() => viewAnalysis(analysis)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    {/* Progress Bars */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">
-                          Assessment Scheduled: {analysis.assessmentScheduled}(
-                          {Math.round((analysis.assessmentScheduled / analysis.candidatesCount) * 100)}%)
-                        </span>
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Results
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => exportAnalysis(analysis)}
+                          className="border-gray-300 hover:bg-gray-50"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Export PDF
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => duplicateAnalysis(analysis)}
+                          className="border-gray-300 hover:bg-gray-50"
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          Use Template
+                        </Button>
                       </div>
-                      <Progress
-                        value={(analysis.assessmentScheduled / analysis.candidatesCount) * 100}
-                        className="h-2"
-                      />
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">
-                          Failed: {analysis.failed}({Math.round((analysis.failed / analysis.candidatesCount) * 100)}%)
-                        </span>
-                      </div>
-                      <Progress value={(analysis.failed / analysis.candidatesCount) * 100} className="h-2" />
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">
-                          Passed: {analysis.passed}({Math.round((analysis.passed / analysis.candidatesCount) * 100)}%)
-                        </span>
-                      </div>
-                      <Progress value={(analysis.passed / analysis.candidatesCount) * 100} className="h-2" />
                     </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex flex-wrap gap-3 pt-2">
-                      <Button
-                        onClick={() => viewAnalysis(analysis)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Results
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => exportAnalysis(analysis)}
-                        className="border-gray-300 hover:bg-gray-50"
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Export PDF
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => duplicateAnalysis(analysis)}
-                        className="border-gray-300 hover:bg-gray-50"
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        Use Template
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
           {/* Empty State */}

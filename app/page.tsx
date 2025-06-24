@@ -175,18 +175,18 @@ export default function Dashboard() {
     }, 200)
 
     try {
-      // Create analysis via API
+      // Create analysis via API using FormData
+      const formData = new FormData()
+      formData.append("title", `Analysis - ${new Date().toLocaleDateString()}`)
+      formData.append("jobDescription", jobDescription)
+      files.forEach((file) => {
+        formData.append("files", file)
+      })
+
       const response = await fetch("/api/analysis/create", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         credentials: "include",
-        body: JSON.stringify({
-          title: `Analysis - ${new Date().toLocaleDateString()}`,
-          jobDescription,
-          files: files.map((file) => ({ name: file.name, size: file.size })),
-        }),
+        body: formData,
       })
 
       const data = await response.json()

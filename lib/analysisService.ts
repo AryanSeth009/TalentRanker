@@ -7,13 +7,13 @@ export async function saveAnalysis(analysis: Omit<Analysis, "_id">): Promise<str
   try {
     const db = await getDatabase()
     const analyses = db.collection<Analysis>("analyses")
-
+    console.log('Inserting analysis into MongoDB:', JSON.stringify(analysis, null, 2))
     const result = await analyses.insertOne({
       ...analysis,
       createdAt: new Date(),
       updatedAt: new Date(),
     })
-
+    console.log('Insert result:', result)
     return result.insertedId.toString()
   } catch (error) {
     console.error("Error saving analysis:", error)
@@ -220,7 +220,7 @@ export function extractResumeData(fileName: string, index: number, resumeContent
   
   const educationLevels = [
     "Bachelor's in Computer Science",
-    "Master's in Software Engineering", 
+    "Master's in Software Engineering",
     "Bachelor's in Information Technology",
     "PhD in Computer Science",
     "Associate's in Programming",
@@ -383,7 +383,7 @@ export function generateAccurateCandidate(file: { name: string }, index: number,
   const lastNames = ["Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Anderson"]
   const locations = ["New York, NY", "San Francisco, CA", "Austin, TX", "Seattle, WA", "Boston, MA", "Chicago, IL"]
   const statuses: Candidate["status"][] = ["assessment-scheduled", "passed", "failed", "pending"]
-  
+
   // If we have parsed resume data, use the actual name
   let name: string
   if (resumeContent) {
@@ -417,7 +417,7 @@ export function generateAccurateCandidate(file: { name: string }, index: number,
     email = `${name.toLowerCase().replace(' ', '.')}@email.com`
     phone = `+1 (${Math.floor(Math.random() * 900) + 100}) ${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`
   }
-  
+
   return {
     id: `candidate-${index}`,
     name,
