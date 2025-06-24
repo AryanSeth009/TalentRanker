@@ -1,0 +1,36 @@
+Job Summary:
+We are looking for a talented Frontend Developer with strong skills in React.js and modern frontend technologies. The ideal candidate will have experience in building scalable web applications and working closely with design teams.
+
+Key Responsibilities:
+Develop user-facing features using React.js.
+
+Build reusable components and libraries for future use.
+
+Optimize applications for maximum speed and scalability.
+
+Collaborate with UI/UX designers and backend developers.
+
+Required Skills:
+Proficient in React.js, JavaScript, and TypeScript.
+
+Experience with Next.js or Vite.
+
+Strong understanding of HTML5, CSS3, Tailwind CSS.
+
+Familiarity with RESTful APIs and JSON.
+
+Version control using Git.
+
+Preferred Skills:
+Experience with Node.js or Express.js.
+
+Knowledge of testing frameworks like Jest.
+
+Basic understanding of CI/CD pipelines.
+
+Other Requirements:
+Excellent problem-solving skills.
+
+Good communication and team collaboration.
+
+Minimum 1-2 years of relevant experience.

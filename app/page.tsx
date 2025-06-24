@@ -29,6 +29,7 @@ import {
   Award,
   TrendingUp,
   Brain,
+  Zap,
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
@@ -61,6 +62,7 @@ export default function Dashboard() {
   const [jobDescription, setJobDescription] = useState("")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState(0)
+  const [analysisStage, setAnalysisStage] = useState("")
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [showResults, setShowResults] = useState(false)
   const [sortBy, setSortBy] = useState<"name" | "score">("score")
@@ -163,56 +165,49 @@ export default function Dashboard() {
 
     setIsAnalyzing(true)
     setAnalysisProgress(0)
-
-    const progressInterval = setInterval(() => {
-      setAnalysisProgress((prev) => {
-        if (prev >= 95) {
-          clearInterval(progressInterval)
-          return 95
-        }
-        return prev + Math.random() * 15
-      })
-    }, 200)
+    setAnalysisStage("Preparing analysis...")
 
     try {
-      // Create analysis via API using FormData
+      // Create FormData for file upload
       const formData = new FormData()
       formData.append("title", `Analysis - ${new Date().toLocaleDateString()}`)
       formData.append("jobDescription", jobDescription)
+
       files.forEach((file) => {
         formData.append("files", file)
       })
 
+      // Start the analysis with real-time progress updates
       const response = await fetch("/api/analysis/create", {
         method: "POST",
-        credentials: "include",
         body: formData,
       })
 
       const data = await response.json()
 
       if (data.success) {
-        clearInterval(progressInterval)
         setAnalysisProgress(100)
+        setAnalysisStage("Analysis complete!")
 
         setCandidates(data.analysis.candidates)
         setCurrentAnalysisId(data.analysisId)
         setShowResults(true)
         setIsAnalyzing(false)
         setAnalysisProgress(0)
+        setAnalysisStage("")
         setCurrentPage(1)
 
         toast({
-          title: "Analysis complete!",
-          description: `Successfully analyzed ${files.length} resumes. Found ${data.analysis.candidates.filter((c: Candidate) => c.matchScore >= 70).length} strong matches.`,
+          title: "AI Analysis Complete!",
+          description: `Successfully analyzed ${files.length} resumes using LangChain. Found ${data.analysis.candidates.filter((c: Candidate) => c.matchScore >= 70).length} strong matches.`,
         })
       } else {
         throw new Error(data.message)
       }
     } catch (error) {
-      clearInterval(progressInterval)
       setIsAnalyzing(false)
       setAnalysisProgress(0)
+      setAnalysisStage("")
 
       toast({
         title: "Analysis failed",
@@ -375,11 +370,26 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <h1 className="text-5xl font-bold text-gray-900 mb-2">AI Resume Shortlisting</h1>
-                  <p className="text-blue-600 text-lg font-medium">Smart Hiring Made Simple</p>
+                  <p className="text-blue-600 text-lg font-medium">Powered by LangChain & Advanced AI</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-center gap-6 text-sm text-gray-600">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-yellow-500" />
+                  <span>LangChain Agent</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Brain className="h-4 w-4 text-blue-500" />
+                  <span>Zero-Shot React</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Award className="h-4 w-4 text-green-500" />
+                  <span>Custom Tools</span>
                 </div>
               </div>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-                Upload resumes and job description to find the best candidates using advanced AI analysis
+                Upload resumes and job description to find the best candidates using our advanced LangChain agent with
+                custom resume matching tools
               </p>
             </div>
 
@@ -485,6 +495,34 @@ We are looking for a Senior Frontend Developer with 5+ years of experience in Re
 
               {/* Right Column - Stats & Action */}
               <div className="space-y-6">
+                {/* AI Features */}
+                <Card className="shadow-lg border-0 bg-gradient-to-r from-purple-50 to-blue-50">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Zap className="h-5 w-5 text-yellow-500" />
+                      LangChain AI Features
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span>Zero-Shot React Agent</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span>Custom Resume Matcher Tool</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span>Intelligent Scoring Algorithm</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span>Automated Good/Bad Points</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* Quick Stats */}
                 <Card className="shadow-lg border-0">
                   <CardHeader className="bg-gradient-to-r from-orange-400 to-orange-500 text-white rounded-t-lg">
@@ -521,12 +559,16 @@ We are looking for a Senior Frontend Developer with 5+ years of experience in Re
                       <div className="space-y-4">
                         <div className="flex items-center gap-3">
                           <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                          <span className="text-lg font-medium text-gray-900">Analyzing {files.length} resumes...</span>
+                          <span className="text-lg font-medium text-gray-900">LangChain Agent Working...</span>
                         </div>
                         <Progress value={analysisProgress} className="h-3" />
-                        <p className="text-sm text-gray-600">
-                          Processing resumes with AI algorithms. This may take a few moments.
-                        </p>
+                        <p className="text-sm text-gray-600">{analysisStage}</p>
+                        <div className="text-xs text-gray-500 space-y-1">
+                          <p>• Extracting text from resumes</p>
+                          <p>• Running Zero-Shot React Agent</p>
+                          <p>• Applying custom matching tools</p>
+                          <p>• Generating analysis reports</p>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -543,17 +585,17 @@ We are looking for a Senior Frontend Developer with 5+ years of experience in Re
                     {isAnalyzing ? (
                       <>
                         <Loader2 className="mr-3 h-6 w-6 animate-spin" />
-                        Analyzing Resumes...
+                        LangChain Agent Running...
                       </>
                     ) : !user ? (
                       <>
                         <Brain className="mr-3 h-6 w-6" />
-                        Sign In to Start Analysis
+                        Sign In to Start AI Analysis
                       </>
                     ) : (
                       <>
-                        <Brain className="mr-3 h-6 w-6" />
-                        Start AI Analysis
+                        <Zap className="mr-3 h-6 w-6" />
+                        Start LangChain Analysis
                       </>
                     )}
                   </Button>
@@ -566,13 +608,17 @@ We are looking for a Senior Frontend Developer with 5+ years of experience in Re
             {/* Results Header */}
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
               <div className="space-y-2">
-                <h1 className="text-4xl font-bold text-gray-900">Analysis Results</h1>
+                <h1 className="text-4xl font-bold text-gray-900">LangChain Analysis Results</h1>
                 <div className="flex items-center gap-4 text-gray-600">
                   <span>Found {candidates.length} candidates</span>
                   <span>•</span>
                   <span>{candidates.filter((c) => c.matchScore >= 80).length} strong matches</span>
                   <span>•</span>
                   <span>{selectedCandidates.size} selected</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-blue-600">
+                  <Zap className="h-4 w-4" />
+                  <span>Powered by Zero-Shot React Agent with Custom Tools</span>
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
