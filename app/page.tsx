@@ -3,6 +3,8 @@
 import type React from "react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Filter, Search, SortAsc, SortDesc } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -33,6 +35,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import Navigation from "./components/navigation";
+import { Candidate } from "@/lib/models";
 
 interface AnalysisResult {
   candidateName: string;
@@ -43,6 +46,8 @@ interface AnalysisResult {
   skills: string[];
 }
 
+const ITEMS_PER_PAGE = 5;
+
 export default function Dashboard() {
   const [files, setFiles] = useState<File[]>([]);
   const [jobDescription, setJobDescription] = useState("");
@@ -50,6 +55,13 @@ export default function Dashboard() {
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [sortBy, setSortBy] = useState<"name" | "score">("score");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [filterScore, setFilterScore] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
+  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
@@ -203,17 +215,6 @@ export default function Dashboard() {
     }
   };
 
-  const resetAnalysis = () => {
-    setShowResults(false);
-    setResults([]);
-    setFiles([]);
-    setJobDescription("");
-    toast({
-      title: "Analysis reset",
-      description: "Ready for new analysis.",
-    });
-  };
-
   const getScoreBadgeColor = (score: number) => {
     if (score >= 80) return "bg-green-100 text-green-800 border-green-200";
     if (score >= 60) return "bg-orange-100 text-orange-800 border-orange-200";
@@ -240,6 +241,104 @@ Preferred Qualifications:
 • Leadership or mentoring experience
 
 We offer competitive salary, excellent benefits, and the opportunity to work on cutting-edge projects with a talented team.`;
+
+  const resetAnalysis = () => {
+    setShowResults(false);
+    setResults([]);
+    setFiles([]);
+    setJobDescription("");
+    setCurrentPage(1);
+    setSearchTerm("");
+    setFilterScore("all");
+    setCurrentAnalysisId(null);
+    toast({
+      title: "Analysis reset",
+      description: "Ready for new analysis.",
+    });
+  };
+
+  const viewCandidateDetails = (candidate: Candidate) => {
+    toast({
+      title: `Viewing ${candidate.name}`,
+      description: "Opening detailed candidate profile...",
+    });
+  };
+
+  const downloadResume = (candidate: Candidate) => {
+    // Simulate resume download
+    const link = document.createElement("a");
+    link.href = "#";
+    link.download = candidate.fileName;
+    link.click();
+
+    toast({
+      title: "Download started",
+      description: `Downloading ${candidate.fileName}...`,
+    });
+  };
+
+  const filteredAndSortedResults = results
+    .filter((result) => {
+      const matchesSearch =
+        result.candidateName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        result.skills.some((skill) => skill.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      const matchesFilter =
+        filterScore === "all" ||
+        (filterScore === "high" && result.score >= 80) ||
+        (filterScore === "medium" && result.score >= 60 && result.score < 80) ||
+        (filterScore === "low" && result.score < 60);
+
+      return matchesSearch && matchesFilter;
+    })
+    .sort((a, b) => {
+      if (sortBy === "name") {
+        return sortOrder === "asc" ? a.candidateName.localeCompare(b.candidateName) : b.candidateName.localeCompare(a.candidateName);
+      } else {
+        return sortOrder === "asc" ? a.score - b.score : b.score - a.score;
+      }
+    });
+
+  const totalPages = Math.ceil(filteredAndSortedResults.length / ITEMS_PER_PAGE);
+  const paginatedResults = filteredAndSortedResults.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  );
+
+  const toggleCandidateSelection = (candidateId: string) => {
+    const newSelection = new Set(selectedCandidates);
+    if (newSelection.has(candidateId)) {
+      newSelection.delete(candidateId);
+    } else {
+      newSelection.add(candidateId);
+    }
+    setSelectedCandidates(newSelection);
+  };
+
+  const exportResults = async () => {
+    const selectedCount = selectedCandidates.size;
+    const exportData =
+      selectedCount > 0 ? results.filter((c) => selectedCandidates.has(c.candidateName)) : filteredAndSortedResults;
+
+    toast({
+      title: "Generating PDF...",
+      description: `Creating report for ${exportData.length} candidate(s)...`,
+    });
+
+    try {
+      await generatePDF(exportData, jobDescription);
+      toast({
+        title: "Export complete!",
+        description: `PDF report with ${exportData.length} candidates has been downloaded.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: "There was an error generating the PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -558,10 +657,71 @@ We offer competitive salary, excellent benefits, and the opportunity to work on 
               </Card>
             </div>
 
+            <Card className="shadow-lg border-0">
+              <CardContent className="pt-6">
+                <div className="flex flex-col lg:flex-row gap-4">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input
+                        placeholder="Search by name or skills..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                          setSearchTerm(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className="pl-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <Select
+                    value={filterScore}
+                    onValueChange={(value) => {
+                      setFilterScore(value);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-full lg:w-[200px] border-gray-300">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Filter by score" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Scores</SelectItem>
+                      <SelectItem value="high">High Match (80+)</SelectItem>
+                      <SelectItem value="medium">Medium Match (60-79)</SelectItem>
+                      <SelectItem value="low">Low Match (&lt;60)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={`${sortBy}-${sortOrder}`}
+                    onValueChange={(value) => {
+                      const [field, order] = value.split("-");
+                      setSortBy(field as "name" | "score");
+                      setSortOrder(order as "asc" | "desc");
+                    }}
+                  >
+                    <SelectTrigger className="w-full lg:w-[200px] border-gray-300">
+                      {sortOrder === "asc" ? (
+                        <SortAsc className="h-4 w-4 mr-2" />
+                      ) : (
+                        <SortDesc className="h-4 w-4 mr-2" />
+                      )}
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="score-desc">Score (High to Low)</SelectItem>
+                      <SelectItem value="score-asc">Score (Low to High)</SelectItem>
+                      <SelectItem value="name-asc">Name (A to Z)</SelectItem>
+                      <SelectItem value="name-desc">Name (Z to A)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Results Grid */}
             <div className="grid gap-6">
-              {results
-                .sort((a, b) => b.score - a.score)
+              {paginatedResults
                 .map((result, index) => (
                   <Card
                     key={index}
@@ -569,8 +729,8 @@ We offer competitive salary, excellent benefits, and the opportunity to work on 
                       result.score >= 80
                         ? "border-l-green-500"
                         : result.score >= 60
-                        ? "border-l-orange-500"
-                        : "border-l-red-500"
+                          ? "border-l-orange-500"
+                          : "border-l-red-500"
                     }`}
                   >
                     <CardContent className="p-6">
@@ -587,29 +747,28 @@ We offer competitive salary, excellent benefits, and the opportunity to work on 
                           </div>
                           <Badge
                             className={`font-bold text-lg px-3 py-1 border ${getScoreBadgeColor(
-                              result.score
+                              result.score,
                             )}`}
                           >
                             {result.score}% Match
                           </Badge>
-                        </div>
-
-                        {/* Skills */}
-                        {result.skills && result.skills.length > 0 && (
-                          <div className="mt-2">
-                            <span className="font-semibold text-gray-700">
-                              Skills:{" "}
-                            </span>
-                            {result.skills.map((skill, idx) => (
-                              <span
-                                key={idx}
-                                className="inline-block bg-blue-100 text-blue-800 text-xs font-medium mr-1 mb-1 px-2 py-0.5 rounded border border-blue-200"
-                              >
-                                {skill}
+                          {/* Skills */}
+                          {result.skills && result.skills.length > 0 && (
+                            <div className="mt-2">
+                              <span className="font-semibold text-gray-700">
+                                Skills:{" "}
                               </span>
-                            ))}
-                          </div>
-                        )}
+                              {result.skills.map((skill, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-block bg-blue-100 text-blue-800 text-xs font-medium mr-1 mb-1 px-2 py-0.5 rounded border border-blue-200"
+                                >
+                                  {skill}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
 
                         {/* Good Points */}
                         <div>
@@ -680,3 +839,8 @@ We offer competitive salary, excellent benefits, and the opportunity to work on 
     </div>
   );
 }
+
+function generatePDF(exportData: any, jobDescription: string) {
+  throw new Error("Function not implemented.");
+}
+
