@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const topScore = Math.max(...candidates.map((c) => c.matchScore))
 
     const analysis: Omit<Analysis, "_id"> = {
-      userId: user._id!.toString(),
+      userId: user._id!,
       title,
       jobDescription,
       candidates,

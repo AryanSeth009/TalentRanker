@@ -96,3 +96,5 @@ class MockChatModel {
     return "mock-chat"
   }
 }
+
+export { ResumeAnalysis }

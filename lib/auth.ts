@@ -1,12 +1,11 @@
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
-import { ObjectId } from "mongodb"
 import { getDatabase } from "./mongodb"
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key"
 
 export interface User {
-  _id?: ObjectId
+  _id?: string
   name: string
   email: string
   password?: string
@@ -42,76 +41,50 @@ export function verifyToken(token: string): { userId: string } | null {
 }
 
 export async function createUser(name: string, email: string, password: string): Promise<AuthResult> {
-  console.log('Starting user creation for:', email);
-  
   try {
-    console.log('Getting database connection...');
-    const db = await getDatabase();
-    console.log('Database connection established');
-    
-    const users = db.collection<User>("users");
-    console.log('Checking for existing user...');
+    const db = await getDatabase()
+    const users = db.collection<User>("users")
 
     // Check if user already exists
-    const existingUser = await users.findOne({ email });
+    const existingUser = await users.findOne({ email })
     if (existingUser) {
-      console.log('User already exists:', email);
       return {
         success: false,
         message: "User with this email already exists",
-      };
+      }
     }
 
-    console.log('Hashing password...');
     // Hash password and create user
-    const hashedPassword = await hashPassword(password);
-    
+    const hashedPassword = await hashPassword(password)
     const newUser: User = {
       name,
       email,
       password: hashedPassword,
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    }
 
-    console.log('Inserting new user into database...');
-    const result = await users.insertOne(newUser);
-    console.log('User inserted with ID:', result.insertedId);
-    
-    const token = generateToken(result.insertedId.toString());
-    console.log('Generated JWT token');
+    const result = await users.insertOne(newUser)
+    const token = generateToken(result.insertedId.toString())
 
-    const userResponse = {
-      _id: result.insertedId,
-      name,
-      email,
-      createdAt: newUser.createdAt,
-      updatedAt: newUser.updatedAt,
-    };
-
-    console.log('User created successfully:', userResponse);
     return {
       success: true,
       message: "User created successfully",
-      user: userResponse,
+      user: {
+        _id: result.insertedId.toString(),
+        name,
+        email,
+        createdAt: newUser.createdAt,
+        updatedAt: newUser.updatedAt,
+      },
       token,
-    };
+    }
   } catch (error) {
-    console.error("Error in createUser function:", {
-      name,
-      email,
-      error: error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      } : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
-    
+    console.error("Error creating user:", error)
     return {
       success: false,
-      message: error instanceof Error ? error.message : "Failed to create user",
-    };
+      message: "Failed to create user",
+    }
   }
 }
 
@@ -142,7 +115,7 @@ export async function authenticateUser(email: string, password: string): Promise
       success: true,
       message: "Authentication successful",
       user: {
-        _id: user._id!,
+        _id: user._id!.toString(),
         name: user.name,
         email: user.email,
         createdAt: user.createdAt,
@@ -167,11 +140,11 @@ export async function getUserFromToken(token: string): Promise<Omit<User, "passw
     const db = await getDatabase()
     const users = db.collection<User>("users")
 
-    const user = await users.findOne({ _id: new ObjectId(decoded.userId) })
+    const user = await users.findOne({ _id: decoded.userId })
     if (!user) return null
 
     return {
-      _id: user._id!,
+      _id: user._id!.toString(),
       name: user.name,
       email: user.email,
       createdAt: user.createdAt,

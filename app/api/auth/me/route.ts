@@ -15,15 +15,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, message: "Invalid token" }, { status: 401 })
     }
 
-    // Convert ObjectId to string for frontend
-    const userResponse = {
-      ...user,
-      _id: user._id!.toString()
-    }
-
     return NextResponse.json({
       success: true,
-      user: userResponse,
+      user,
     })
   } catch (error) {
     console.error("Get user error:", error)

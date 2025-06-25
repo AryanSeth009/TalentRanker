@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ success: false, message: "Invalid token" }, { status: 401 })
     }
 
-    const analysis = await getAnalysisById(params.id, user._id!.toString())
+    const analysis = await getAnalysisById(params.id, user._id!)
 
     if (!analysis) {
       return NextResponse.json({ success: false, message: "Analysis not found" }, { status: 404 })
@@ -44,7 +44,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ success: false, message: "Invalid token" }, { status: 401 })
     }
 
-    const success = await deleteAnalysis(params.id, user._id!.toString())
+    const success = await deleteAnalysis(params.id, user._id!)
 
     if (!success) {
       return NextResponse.json(

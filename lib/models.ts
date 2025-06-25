@@ -1,5 +1,3 @@
-import { ObjectId } from "mongodb"
-
 export interface Candidate {
   id: string
   name: string
@@ -19,7 +17,7 @@ export interface Candidate {
 }
 
 export interface Analysis {
-  _id?: ObjectId
+  _id?: string
   userId: string
   title: string
   jobDescription: string
@@ -38,7 +36,7 @@ export interface Analysis {
 }
 
 export interface FileUpload {
-  _id?: ObjectId
+  _id?: string
   userId: string
   fileName: string
   originalName: string

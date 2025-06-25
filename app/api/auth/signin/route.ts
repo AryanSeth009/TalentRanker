@@ -15,16 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(result, { status: 401 })
     }
 
-    // Convert ObjectId to string for frontend
-    const responseData = {
-      ...result,
-      user: result.user ? {
-        ...result.user,
-        _id: result.user._id!.toString()
-      } : undefined
-    }
-
-    const response = NextResponse.json(responseData)
+    const response = NextResponse.json(result)
 
     // Set HTTP-only cookie
     response.cookies.set("auth-token", result.token!, {
