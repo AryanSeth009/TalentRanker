@@ -26,6 +26,7 @@ import {
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import Navigation from "./components/navigation"
 
 interface AnalysisResult {
   candidateName: string
@@ -229,7 +230,8 @@ We offer competitive salary, excellent benefits, and the opportunity to work on 
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-gray-200 shadow-sm">
+       <Navigation />
+      {/* <header className="bg-white border-b border-gray-200 shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="bg-blue-500 p-2 rounded-xl">
@@ -239,7 +241,7 @@ We offer competitive salary, excellent benefits, and the opportunity to work on 
             <Badge className="bg-blue-100 text-blue-800 border-blue-200">Mock Analysis Engine</Badge>
           </div>
         </div>
-      </header>
+      </header> */}
 
       <main className="container mx-auto px-4 py-8">
         {!showResults ? (
