@@ -1,16 +1,21 @@
-import bcrypt from "bcryptjs"
-import jwt from "jsonwebtoken"
-import { getDatabase } from "./mongodb"
+import { createClient } from "@supabase/supabase-js"
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key"
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+
+// We use a singleton supabase client for auth actions in the server routes
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+  }
+})
 
 export interface User {
   _id?: string
   name: string
   email: string
-  password?: string
-  createdAt: Date
-  updatedAt: Date
+  createdAt: Date | string
+  updatedAt: Date | string
 }
 
 export interface AuthResult {
@@ -20,64 +25,43 @@ export interface AuthResult {
   token?: string
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 12)
-}
-
-export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
-  return bcrypt.compare(password, hashedPassword)
-}
-
-export function generateToken(userId: string): string {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" })
-}
-
-export function verifyToken(token: string): { userId: string } | null {
-  try {
-    return jwt.verify(token, JWT_SECRET) as { userId: string }
-  } catch {
-    return null
-  }
-}
-
 export async function createUser(name: string, email: string, password: string): Promise<AuthResult> {
   try {
-    const db = await getDatabase()
-    const users = db.collection<User>("users")
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+        }
+      }
+    })
 
-    // Check if user already exists
-    const existingUser = await users.findOne({ email })
-    if (existingUser) {
+    if (error) {
       return {
         success: false,
-        message: "User with this email already exists",
+        message: error.message,
       }
     }
 
-    // Hash password and create user
-    const hashedPassword = await hashPassword(password)
-    const newUser: User = {
-      name,
-      email,
-      password: hashedPassword,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    if (!data.user || !data.session) {
+      return {
+         success: false,
+         message: "Account creation requires email verification.",
+      }
     }
-
-    const result = await users.insertOne(newUser)
-    const token = generateToken(result.insertedId.toString())
 
     return {
       success: true,
       message: "User created successfully",
       user: {
-        _id: result.insertedId.toString(),
-        name,
-        email,
-        createdAt: newUser.createdAt,
-        updatedAt: newUser.updatedAt,
+        _id: data.user.id,
+        name: data.user.user_metadata?.name || name,
+        email: data.user.email!,
+        createdAt: data.user.created_at,
+        updatedAt: data.user.updated_at || data.user.created_at,
       },
-      token,
+      token: data.session.access_token,
     }
   } catch (error) {
     console.error("Error creating user:", error)
@@ -90,38 +74,29 @@ export async function createUser(name: string, email: string, password: string):
 
 export async function authenticateUser(email: string, password: string): Promise<AuthResult> {
   try {
-    const db = await getDatabase()
-    const users = db.collection<User>("users")
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
-    const user = await users.findOne({ email })
-    if (!user || !user.password) {
+    if (error) {
       return {
         success: false,
         message: "Invalid email or password",
       }
     }
-
-    const isValidPassword = await verifyPassword(password, user.password)
-    if (!isValidPassword) {
-      return {
-        success: false,
-        message: "Invalid email or password",
-      }
-    }
-
-    const token = generateToken(user._id!.toString())
 
     return {
       success: true,
       message: "Authentication successful",
       user: {
-        _id: user._id!.toString(),
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
+        _id: data.user.id,
+        name: data.user.user_metadata?.name || "",
+        email: data.user.email!,
+        createdAt: data.user.created_at,
+        updatedAt: data.user.updated_at || data.user.created_at,
       },
-      token,
+      token: data.session.access_token,
     }
   } catch (error) {
     console.error("Error authenticating user:", error)
@@ -134,21 +109,17 @@ export async function authenticateUser(email: string, password: string): Promise
 
 export async function getUserFromToken(token: string): Promise<Omit<User, "password"> | null> {
   try {
-    const decoded = verifyToken(token)
-    if (!decoded) return null
-
-    const db = await getDatabase()
-    const users = db.collection<User>("users")
-
-    const user = await users.findOne({ _id: decoded.userId })
-    if (!user) return null
+    // We send the JWT back to Supabase to verify it and fetch the user
+    const { data, error } = await supabase.auth.getUser(token)
+    
+    if (error || !data.user) return null
 
     return {
-      _id: user._id!.toString(),
-      name: user.name,
-      email: user.email,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
+      _id: data.user.id,
+      name: data.user.user_metadata?.name || "",
+      email: data.user.email!,
+      createdAt: data.user.created_at,
+      updatedAt: data.user.updated_at || data.user.created_at,
     }
   } catch (error) {
     console.error("Error getting user from token:", error)

@@ -123,7 +123,7 @@ export const generatePDF = async (candidates: Candidate[], jobDescription: strin
     yPosition += 5
 
     // Match score with color
-    const scoreColor =
+    const scoreColor: [number, number, number] =
       candidate.matchScore >= 80 ? [34, 197, 94] : candidate.matchScore >= 60 ? [255, 169, 77] : [239, 68, 68]
     doc.setTextColor(...scoreColor)
     doc.setFont("helvetica", "bold")

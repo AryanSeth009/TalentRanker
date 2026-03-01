@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { ResumeParser } from "@/lib/resumeParser"
-import { MockAnalysisEngine } from "@/lib/mockAnalysisEngine"
+import { getUserFromToken } from "@/lib/auth"
+import { saveAnalysis } from "@/lib/analysisService"
+import { analyzeResumeWithGemini } from "@/lib/gemini"
+import type { Analysis, Candidate } from "@/lib/models"
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,18 +47,110 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 2: Analyze resumes using mock analysis engine
-    const analyses = await MockAnalysisEngine.analyzeBatch(resumeData, jobDescription)
+    // Step 2: Analyze resumes using Grok AI engine
+    const analyses = []
+    
+    for (const data of resumeData) {
+      try {
+        const deepAnalysis = await analyzeResumeWithGemini(data.text, jobDescription);
+        
+        // Add required fields
+        analyses.push({
+          candidateName: data.name,
+          fileName: data.fileName,
+          ...deepAnalysis
+        })
+      } catch (err) {
+        console.error(`Gemini analysis failed for ${data.name}:`, err)
+        analyses.push({
+          candidateName: data.name,
+          fileName: data.fileName,
+          overall_score: 0,
+          summary: "Analysis Failed",
+          skill_gaps: [],
+          red_flags: [],
+          culture_fit: { score: 0, reasoning: "", matching_values: [], mismatched_values: [], dimensions: [] },
+          interview_questions: [],
+          strengths: [],
+          concerns: ["Failed to contact Gemini AI backend"]
+        })
+      }
+    }
 
-    // Step 3: Return results in the specified format
+    // Step 3: Return results in the specified format for UI
     const results = analyses.map((analysis) => ({
       candidateName: analysis.candidateName,
-      score: analysis.score,
-      goodPoints: analysis.goodPoints,
-      badPoints: analysis.badPoints,
+      score: analysis.overall_score,
+      goodPoints: analysis.strengths,
+      badPoints: analysis.concerns,
       fileName: analysis.fileName,
-      skills: analysis.skills,
+      skills: (analysis.skill_gaps || []).filter((g: any) => g.present).map((g: any) => g.skill),
+      deepAnalysis: analysis // pass everything to UI
     }))
+
+    // Step 4: Save to database if user is logged in
+    try {
+      const token = request.cookies.get("auth-token")?.value
+      if (token) {
+        const user = await getUserFromToken(token)
+        if (user) {
+          const candidates: Candidate[] = analyses.map((analysis, index) => {
+            const names = analysis.candidateName.split(" ")
+            const firstName = names[0] || "Unknown"
+            const lastName = names.length > 1 ? names[names.length - 1] : "Candidate"
+            
+            return {
+              id: `candidate-${Date.now()}-${index}`,
+              name: analysis.candidateName,
+              email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@email.com`,
+              phone: `+1 (${Math.floor(Math.random() * 900) + 100}) ${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
+              matchScore: analysis.overall_score,
+              goodPoints: analysis.strengths,
+              badPoints: analysis.concerns,
+              fileName: analysis.fileName,
+              experience: "Not extracted",
+              skills: analysis.skill_gaps ? analysis.skill_gaps.filter((g: any) => g.present).map((g: any) => g.skill) : [],
+              education: "Not extracted",
+              location: "Not extracted",
+              raw_analysis: analysis,
+              summary: `Automated analysis for ${analysis.candidateName}`,
+              status: "pending",
+            }
+          })
+
+          const highMatches = candidates.filter((c) => c.matchScore >= 80).length
+          const mediumMatches = candidates.filter((c) => c.matchScore >= 60 && c.matchScore < 80).length
+          const lowMatches = candidates.filter((c) => c.matchScore < 60).length
+          const averageScore = candidates.length > 0 
+            ? Math.round(candidates.reduce((sum, c) => sum + c.matchScore, 0) / candidates.length)
+            : 0
+          const topScore = candidates.length > 0 ? Math.max(...candidates.map((c) => c.matchScore)) : 0
+
+          const dbAnalysis: Omit<Analysis, "_id"> = {
+          userId: user._id!.toString(),
+          title: `Analysis for ${jobDescription.substring(0, 30)}...`,
+          jobDescription,
+          candidates,
+          status: "completed",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            statistics: {
+              totalCandidates: candidates.length,
+              highMatches,
+              mediumMatches,
+              lowMatches,
+              averageScore,
+              topScore,
+            },
+          }
+
+          await saveAnalysis(dbAnalysis)
+        }
+      }
+    } catch (saveError) {
+      console.error("Failed to save analysis to database:", saveError)
+      // We don't throw here to avoid failing the analysis request if DB save fails
+    }
 
     return NextResponse.json(results)
   } catch (error) {

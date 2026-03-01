@@ -14,6 +14,7 @@ export interface Candidate {
   summary: string
   status: "assessment-scheduled" | "passed" | "failed" | "pending"
   resumeContent?: string
+  raw_analysis?: any
 }
 
 export interface Analysis {
