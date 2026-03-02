@@ -81,6 +81,8 @@ export default function PipelinePage() {
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
+
+    
     
     // Sort logic requires tracking sequence if implemented later
     // For now the UI optimistically bumps the stage during OnDragOver

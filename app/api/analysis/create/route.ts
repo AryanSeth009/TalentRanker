@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getUserFromToken } from "@/lib/auth"
 import { saveAnalysis } from "@/lib/analysisService"
-import { analyzeResumeWithGemini } from "@/lib/gemini"
+import { analyzeResumeWithOllama } from "@/lib/ollama"
 import { ResumeParser } from "@/lib/resumeParser"
 import type { Analysis, Candidate } from "@/lib/models"
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         const text = await ResumeParser.extractText(file)
         const candidateName = ResumeParser.extractCandidateName(text)
         
-        const deepAnalysis = await analyzeResumeWithGemini(text, jobDescription);
+        const deepAnalysis = await analyzeResumeWithOllama(text, jobDescription);
         
         const names = candidateName.split(" ")
         const firstName = names[0] || "Unknown"

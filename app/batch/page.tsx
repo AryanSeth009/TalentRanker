@@ -49,13 +49,14 @@ export default function BatchPage() {
         })
         const data = await res.json()
         
-        if (data.success && data.analysis) {
-          // Map backend DeepAnalysis structure to the matrix rows
+        if (data.success && data.analysis && data.analysis.candidates && data.analysis.candidates.length > 0) {
+          const candidate = data.analysis.candidates[0]; // The API returns an array, we get the first one for this file
+          
           actualResults.push({
             name: files[i].name.replace(/\.[^/.]+$/, ""),
-            score: data.analysis.overall_score || data.analysis.matchScore || 0,
-            skillsMatched: data.analysis.strengths?.length || 3,
-            experienceFit: (data.analysis.overall_score || 0) >= 80 ? "High" : (data.analysis.overall_score || 0) >= 60 ? "Medium" : "Low",
+            score: candidate.matchScore || 0,
+            skillsMatched: candidate.skills?.length || 0,
+            experienceFit: (candidate.matchScore || 0) >= 80 ? "High" : (candidate.matchScore || 0) >= 60 ? "Medium" : "Low",
             status: "Completed",
           })
         } else {
@@ -102,15 +103,17 @@ export default function BatchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="min-h-screen pt-28  bg-[#0a0a0f] relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] rounded-full bg-primary/10 blur-[120px] animate-blob" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-secondary/10 blur-[120px] animate-blob animation-delay-2000" />
       </div>
+        <div className="ambient-glow bg-primary top-[30%] left-[-10%] animate-drift" />
+      <div className="ambient-glow bg-secondary bottom-[-10%] right-[-10%] animate-drift-reverse" />
 
       <Navigation />
 
-      <main className="container mx-auto px-4 pt-24 pb-12">
+      <main className="container mx-auto px-4 pt-2  4 pb-12">
         <div className="flex justify-between items-end mb-8">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold tracking-wide uppercase mb-4">

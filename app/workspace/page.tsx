@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { 
   Users, 
@@ -12,7 +12,8 @@ import {
   MoreVertical,
   Trash2,
   CheckCircle2,
-  Activity
+  Activity,
+  Loader2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,16 +23,50 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Navigation from "@/app/components/navigation"
 import { useAuth } from "@/app/hooks/useAuth"
 
-const MOCK_MEMBERS = [
-  { id: 1, name: "Aryan Seth", email: "aryan@talentranker.ai", role: "Owner", status: "Active" },
-  { id: 2, name: "Jessica Chen", email: "jessica@talentranker.ai", role: "Admin", status: "Active" },
-  { id: 3, name: "Michael Ross", email: "michael@talentranker.ai", role: "Member", status: "Away" },
-  { id: 4, name: "Sarah Miller", email: "sarah@talentranker.ai", role: "Member", status: "Active" },
-]
-
 export default function WorkspacePage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("members")
+  const [workspace, setWorkspace] = useState<any>(null)
+  const [members, setMembers] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchWorkspace() {
+      if (!user) return
+      try {
+        const res = await fetch('/api/workspace')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success) {
+            setWorkspace(data.workspace)
+            setMembers(data.members)
+          }
+        }
+      } catch (err) {
+        console.error("Workspace load error", err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    if (user) {
+      fetchWorkspace()
+    } else {
+      const timer = setTimeout(() => setIsLoading(false), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [user])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] relative overflow-hidden flex flex-col justify-center items-center">
+        <Navigation />
+        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+        <p className="text-muted-foreground font-syne animate-pulse text-lg">Loading your workspace...</p>
+      </div>
+    )
+  }
+
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] relative overflow-hidden">
@@ -107,33 +142,41 @@ export default function WorkspacePage() {
                       </CardHeader>
                       <CardContent className="p-0">
                         <div className="divide-y divide-white/5">
-                          {MOCK_MEMBERS.map((member) => (
-                            <div key={member.id} className="flex items-center justify-between p-4 hover:bg-white/5 transition-colors group">
-                              <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-blue-500 flex items-center justify-center font-bold text-sm text-white border border-white/10">
-                                  {member.name.split(" ").map(n => n[0]).join("")}
+                          {members.map((member) => {
+                            const isCurrentUser = member.user_id === user?._id;
+                            const name = isCurrentUser ? (user?.name || "CurrentUser") : `Member ${member.user_id.substring(0, 4)}`;
+                            const email = isCurrentUser ? (user?.email || "") : "Hidden for privacy";
+                            const status = isCurrentUser ? "Active" : "Joined";
+                            const role = member.role.charAt(0).toUpperCase() + member.role.slice(1);
+                            
+                            return (
+                              <div key={member.user_id} className="flex items-center justify-between p-4 hover:bg-white/5 transition-colors group">
+                                <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-blue-500 flex items-center justify-center font-bold text-sm text-white border border-white/10">
+                                    {name.substring(0, 2).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <p className="font-semibold text-foreground/90">{name}</p>
+                                    <p className="text-xs text-muted-foreground">{email}</p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <p className="font-semibold text-foreground/90">{member.name}</p>
-                                  <p className="text-xs text-muted-foreground">{member.email}</p>
+                                <div className="flex items-center gap-6">
+                                  <div className="hidden md:block text-right">
+                                    <Badge variant="outline" className={`bg-transparent border-white/10 text-xs ${role === 'Admin' ? 'text-primary border-primary/30' : 'text-muted-foreground'}`}>
+                                      {role}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                                    <span className="text-xs text-muted-foreground">{status}</span>
+                                  </div>
+                                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-6">
-                                <div className="hidden md:block text-right">
-                                  <Badge variant="outline" className={`bg-transparent border-white/10 text-xs ${member.role === 'Owner' ? 'text-primary border-primary/30' : 'text-muted-foreground'}`}>
-                                    {member.role}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <div className={`w-2 h-2 rounded-full ${member.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                                  <span className="text-xs text-muted-foreground">{member.status}</span>
-                                </div>
-                                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <MoreVertical className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </CardContent>
                     </Card>
@@ -171,12 +214,12 @@ export default function WorkspacePage() {
                       <CardContent className="p-6 space-y-6">
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-muted-foreground">Workspace Name</label>
-                          <Input defaultValue="TalentRanker HQ" className="bg-[#0a0a0f]/50 border-white/10 rounded-xl h-12 focus:border-primary transition-all" />
+                          <Input defaultValue={workspace?.name || "TalentRanker HQ"} className="bg-[#0a0a0f]/50 border-white/10 rounded-xl h-12 focus:border-primary transition-all" />
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-muted-foreground">Workspace ID</label>
                           <div className="flex gap-2">
-                            <Input disabled value="tr-hq-8293" className="bg-white/5 border-white/5 rounded-xl h-12 cursor-not-allowed" />
+                            <Input disabled value={workspace?.id || "tr-hq-8293"} className="bg-white/5 border-white/5 rounded-xl h-12 cursor-not-allowed" />
                             <Button variant="outline" className="h-12 border-white/10 rounded-xl px-4">Copy</Button>
                           </div>
                         </div>

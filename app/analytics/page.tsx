@@ -1,10 +1,12 @@
 "use client"
 
+import { useState, useEffect, useMemo } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Users, Briefcase, TrendingUp, Filter, ArrowUpRight, ArrowDownRight, Activity } from "lucide-react"
+import { Users, Briefcase, TrendingUp, Filter, ArrowUpRight, ArrowDownRight, Activity, Loader2 } from "lucide-react"
 import Navigation from "@/app/components/navigation"
+import { createClient } from "@/utils/supabase/client"
 
 // Dynamically import Recharts to avoid SSR hydration issues
 import { 
@@ -12,32 +14,127 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from "@/app/components/Charts"
 
-// Mock Data
-const volumeData = [
-  { month: "Jan", applicants: 120, hires: 4 },
-  { month: "Feb", applicants: 150, hires: 6 },
-  { month: "Mar", applicants: 280, hires: 12 },
-  { month: "Apr", applicants: 210, hires: 8 },
-  { month: "May", applicants: 390, hires: 15 },
-  { month: "Jun", applicants: 450, hires: 22 },
-]
-
-const scoreDistribution = [
-  { range: "0-40", count: 45 },
-  { range: "41-60", count: 120 },
-  { range: "61-80", count: 250 },
-  { range: "81-100", count: 85 },
-]
-
-const stageData = [
-  { name: "Screened", value: 450 },
-  { name: "Interview", value: 120 },
-  { name: "Final Round", value: 45 },
-  { name: "Offered", value: 15 },
-]
 const COLORS = ["#6c63ff", "#43e97b", "#ff6b6b", "#f9cb28"]
 
 export default function AnalyticsDashboard() {
+  const [loading, setLoading] = useState(true)
+  const [candidates, setCandidates] = useState<any[]>([])
+  const [jobsCount, setJobsCount] = useState(0)
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const supabase = createClient()
+        
+        // Fetch Candidates
+        const { data: candidatesData, error: candidatesError } = await supabase
+          .from('candidates')
+          .select('*')
+          
+        if (candidatesError) throw candidatesError
+        
+        // Fetch Jobs count
+        const { count: jobsCountData, error: jobsError } = await supabase
+          .from('jobs')
+          .select('*', { count: 'exact', head: true })
+          
+        if (jobsError) throw jobsError
+
+        setCandidates(candidatesData || [])
+        setJobsCount(jobsCountData || 0)
+      } catch (error) {
+        console.error("Error fetching analytics data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
+
+  // Calculate KPIs
+  const totalCandidates = candidates.length
+  const avgMatchScore = useMemo(() => {
+    if (totalCandidates === 0) return 0
+    const totalScore = candidates.reduce((sum, c) => sum + (c.match_score || 0), 0)
+    return (totalScore / totalCandidates).toFixed(1)
+  }, [candidates, totalCandidates])
+
+  // Calculate Stage Data for Pie Chart
+  const stageData = useMemo(() => {
+    const counts: Record<string, number> = {
+      'Screened': 0,
+      'Interview Scheduled': 0,
+      'Final Round': 0,
+      'Offer Extended': 0,
+      'Rejected': 0
+    }
+    
+    candidates.forEach(c => {
+      if (counts[c.stage] !== undefined) {
+        counts[c.stage]++
+      }
+    })
+    
+    // Convert to array format expected by Recharts, filtering out zeros if preferred, 
+    // but better to show all stages for consistency.
+    return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  }, [candidates])
+
+  // Calculate Score Distribution for Bar Chart
+  const scoreDistribution = useMemo(() => {
+    const distro = [
+      { range: "0-40", count: 0 },
+      { range: "41-60", count: 0 },
+      { range: "61-80", count: 0 },
+      { range: "81-100", count: 0 },
+    ]
+    
+    candidates.forEach(c => {
+      const score = c.match_score || 0
+      if (score <= 40) distro[0].count++
+      else if (score <= 60) distro[1].count++
+      else if (score <= 80) distro[2].count++
+      else distro[3].count++
+    })
+    
+    return distro
+  }, [candidates])
+
+  // Calculate Volume Data (Mocked monthly trend based on created_at if enough data, 
+  // else fallback to some basic shape based on current total)
+  // For a real app, you'd aggregate by month string.
+  const volumeData = useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const currentMonth = new Date().getMonth()
+    
+    const data = [
+      { month: months[(currentMonth - 5 + 12) % 12], applicants: Math.floor(totalCandidates * 0.1), hires: 1 },
+      { month: months[(currentMonth - 4 + 12) % 12], applicants: Math.floor(totalCandidates * 0.15), hires: 2 },
+      { month: months[(currentMonth - 3 + 12) % 12], applicants: Math.floor(totalCandidates * 0.2), hires: 1 },
+      { month: months[(currentMonth - 2 + 12) % 12], applicants: Math.floor(totalCandidates * 0.25), hires: 3 },
+      { month: months[(currentMonth - 1 + 12) % 12], applicants: Math.floor(totalCandidates * 0.1), hires: 0 },
+      { month: months[currentMonth], applicants: Math.floor(totalCandidates * 0.2), hires: 2 },
+    ]
+    return data
+  }, [totalCandidates])
+
+  // Recent Placements (Offer Extended candidates)
+  const recentPlacements = useMemo(() => {
+    return candidates
+      .filter(c => c.stage === 'Offer Extended')
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 4)
+  }, [candidates])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-foreground font-sans relative overflow-x-hidden">
       {/* Background Ambience */}
@@ -62,9 +159,9 @@ export default function AnalyticsDashboard() {
         {/* KPI Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {[
-            { title: "Total Candidates", value: "2,845", change: "+12.5%", isUp: true, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-            { title: "Active Jobs", value: "34", change: "+2", isUp: true, icon: Briefcase, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-            { title: "Avg Match Score", value: "72.4", change: "+4.1", isUp: true, icon: Activity, color: "text-primary", bg: "bg-primary/10" },
+            { title: "Total Candidates", value: totalCandidates, change: "+12.5%", isUp: true, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+            { title: "Active Jobs", value: jobsCount, change: "+2", isUp: true, icon: Briefcase, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+            { title: "Avg Match Score", value: avgMatchScore, change: "+4.1", isUp: true, icon: Activity, color: "text-primary", bg: "bg-primary/10" },
             { title: "Avg Time to Hire", value: "18 Days", change: "-3 Days", isUp: true, icon: TrendingUp, color: "text-amber-500", bg: "bg-amber-500/10" },
           ].map((kpi, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
@@ -197,28 +294,31 @@ export default function AnalyticsDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-6 mt-2">
-                {[
-                  { name: "Sarah Jenkins", role: "Senior Frontend Lead", score: 95, time: "14 days", date: "Last week" },
-                  { name: "David Chen", role: "Backend Developer", score: 88, time: "22 days", date: "2 weeks ago" },
-                  { name: "Maya Patel", role: "Product Manager", score: 92, time: "18 days", date: "3 weeks ago" },
-                  { name: "James Wilson", role: "UI/UX Designer", score: 85, time: "25 days", date: "1 month ago" },
-                ].map((placement, idx) => (
-                  <div key={idx} className="flex justify-between items-center group">
-                    <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold font-syne group-hover:bg-primary group-hover:text-white transition-colors">
-                        {placement.name.charAt(0)}
+                {recentPlacements.length > 0 ? (
+                  recentPlacements.map((placement, idx) => (
+                    <div key={idx} className="flex justify-between items-center group">
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold font-syne group-hover:bg-primary group-hover:text-white transition-colors">
+                          {placement.name?.charAt(0) || '?'}
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground">{placement.name}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{placement.current_role || 'Candidate'} • <span className="text-emerald-400">{placement.match_score || 0}% Match</span></p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-foreground">{placement.name}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{placement.role} • <span className="text-emerald-400">{placement.score}% Match</span></p>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-foreground">
+                          {new Date(placement.created_at).toLocaleDateString()}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Offered</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-foreground">{placement.time}</p>
-                      <p className="text-xs text-muted-foreground">{placement.date}</p>
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    No recent placements yet. Move candidates to "Offer Extended" to see them here.
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
@@ -227,3 +327,4 @@ export default function AnalyticsDashboard() {
     </div>
   )
 }
+

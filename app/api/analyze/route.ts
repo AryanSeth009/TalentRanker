@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { ResumeParser } from "@/lib/resumeParser"
 import { getUserFromToken } from "@/lib/auth"
 import { saveAnalysis } from "@/lib/analysisService"
-import { analyzeResumeWithGemini } from "@/lib/gemini"
+import { analyzeResumeWithOllama } from "@/lib/ollama"
 import type { Analysis, Candidate } from "@/lib/models"
 
 export async function POST(request: NextRequest) {
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     
     for (const data of resumeData) {
       try {
-        const deepAnalysis = await analyzeResumeWithGemini(data.text, jobDescription);
+        const deepAnalysis = await analyzeResumeWithOllama(data.text, jobDescription);
         
         // Add required fields
         analyses.push({
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
           ...deepAnalysis
         })
       } catch (err) {
-        console.error(`Gemini analysis failed for ${data.name}:`, err)
+        console.error(`AI analysis failed for ${data.name}:`, err)
         analyses.push({
           candidateName: data.name,
           fileName: data.fileName,
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
           culture_fit: { score: 0, reasoning: "", matching_values: [], mismatched_values: [], dimensions: [] },
           interview_questions: [],
           strengths: [],
-          concerns: ["Failed to contact Gemini AI backend"]
+          concerns: ["Failed to contact AI provider. Please check your OpenRouter API key and connection."]
         })
       }
     }

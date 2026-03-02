@@ -1,7 +1,8 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "@langchain/core/output_parsers";
 import { z } from "zod";
+
 export const ANALYSIS_SYSTEM_PROMPT = `
 You are an expert technical recruiter and resume analyst.
 Analyze the given resume against the provided job description.
@@ -39,14 +40,16 @@ CRITICAL: You must return the analysis ONLY as a valid JSON object matching this
 Do not include markdown code block formatting (like \`\`\`json) in your response. Output raw JSON only.
 `;
 
-const model = new ChatGoogleGenerativeAI({
-  model: "gemini-2.0-flash",
-  apiKey: process.env.GOOGLE_GENAI_API_KEY,
-  maxOutputTokens: 2048,
+const model = new ChatOpenAI({
+  modelName: "meta-llama/llama-3.3-70b-instruct",
   temperature: 0.1,
+  openAIApiKey: process.env.OPENROUTER_API_KEY,
+  configuration: {
+    baseURL: "https://openrouter.ai/api/v1",
+  }
 });
 
-// Reuse the schema from the Grok implementation but via Zod for better LangChain integration
+// Reuse the schema from the prior implementations via Zod for better LangChain integration
 const analysisSchema = z.object({
   overall_score: z.number().min(0).max(100),
   summary: z.string(),
@@ -90,7 +93,7 @@ const prompt = new PromptTemplate({
   },
 });
 
-export async function analyzeResumeWithGemini(resumeText: string, jobDescription: string) {
+export async function analyzeResumeWithOllama(resumeText: string, jobDescription: string) {
   try {
     const input = await prompt.format({
       system_prompt: ANALYSIS_SYSTEM_PROMPT,
@@ -102,7 +105,7 @@ export async function analyzeResumeWithGemini(resumeText: string, jobDescription
     const parsed = await parser.parse(response.content as string);
     return parsed;
   } catch (error) {
-    console.error("Gemini Analysis Error:", error);
+    console.error("Ollama Analysis Error:", error);
     throw error;
   }
 }
