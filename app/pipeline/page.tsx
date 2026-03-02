@@ -11,7 +11,8 @@ import {
   useSensors,
   DragStartEvent,
   DragOverEvent,
-  DragEndEvent
+  DragEndEvent,
+  useDroppable
 } from "@dnd-kit/core"
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CandidateCard } from "@/app/components/CandidateCard"
@@ -60,34 +61,38 @@ export default function PipelinePage() {
 
     if (activeId === overId) return
 
+    // We no longer trigger database updates on hover, instead we handle it fully in DragEnd
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    
+    setActiveId(null)
+
+    if (!over) return
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    if (activeId === overId) return
+
     const activeCandidate = candidates.find(c => c.id === activeId)
     const overCandidate = candidates.find(c => c.id === overId)
 
     if (!activeCandidate) return
 
-    // If over a candidate
+    // If dropped over another candidate
     if (overCandidate) {
       if (activeCandidate.stage !== overCandidate.stage) {
-        updateCandidateStage(activeId as string, overCandidate.stage)
+        updateCandidateStage(activeId, overCandidate.stage)
       }
     } else {
-      // If over an empty column
+      // If dropped over an empty column area
       const overColumnId = COLUMNS.find(c => c.id === overId)?.id
       if (overColumnId && activeCandidate.stage !== overColumnId) {
-        updateCandidateStage(activeId as string, overColumnId)
+        updateCandidateStage(activeId, overColumnId)
       }
     }
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-
-    
-    
-    // Sort logic requires tracking sequence if implemented later
-    // For now the UI optimistically bumps the stage during OnDragOver
-
-    setActiveId(null)
   }
 
   return (
@@ -129,18 +134,20 @@ export default function PipelinePage() {
                  </div>
                  
                  <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
-                   <SortableContext id={col.id} items={col.candidates.map(c => c.id)} strategy={verticalListSortingStrategy}>
-                     <div className="min-h-full">
-                       {col.candidates.map(candidate => (
-                         <CandidateCard key={candidate.id} candidate={candidate} />
-                       ))}
-                       {col.candidates.length === 0 && (
-                         <div className="h-24 border-2 border-dashed border-white/5 rounded-lg flex items-center justify-center text-sm text-muted-foreground/50">
-                           Drop candidates here
-                         </div>
-                       )}
-                     </div>
-                   </SortableContext>
+                   <DroppableColumn id={col.id}>
+                     <SortableContext id={col.id} items={col.candidates.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                       <div className="min-h-[200px] h-full">
+                         {col.candidates.map(candidate => (
+                           <CandidateCard key={candidate.id} candidate={candidate} />
+                         ))}
+                         {col.candidates.length === 0 && (
+                           <div className="h-24 border-2 border-dashed border-white/5 rounded-lg flex items-center justify-center text-sm text-muted-foreground/50">
+                             Drop candidates here
+                           </div>
+                         )}
+                       </div>
+                     </SortableContext>
+                   </DroppableColumn>
                  </div>
                </div>
               ))}
@@ -156,6 +163,16 @@ export default function PipelinePage() {
           </DndContext>
         </div>
       </main>
+    </div>
+  )
+}
+
+function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef } = useDroppable({ id })
+  
+  return (
+    <div ref={setNodeRef} className="h-full">
+      {children}
     </div>
   )
 }

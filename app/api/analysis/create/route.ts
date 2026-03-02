@@ -3,7 +3,15 @@ import { getUserFromToken } from "@/lib/auth"
 import { saveAnalysis } from "@/lib/analysisService"
 import { analyzeResumeWithOllama } from "@/lib/ollama"
 import { ResumeParser } from "@/lib/resumeParser"
+import { getOrCreateWorkspace } from "@/lib/workspaceService"
+import { createClient } from "@supabase/supabase-js"
 import type { Analysis, Candidate } from "@/lib/models"
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false }
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Process resumes with Grok AI
-    const candidates: Candidate[] = []
+    const apiCandidates: Candidate[] = []
     
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
@@ -46,7 +54,7 @@ export async function POST(request: NextRequest) {
         const firstName = names[0] || "Unknown"
         const lastName = names.length > 1 ? names[names.length - 1] : "Candidate"
         
-        candidates.push({
+        apiCandidates.push({
           id: `candidate-${Date.now()}-${i}`,
           name: candidateName,
           email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@email.com`,
@@ -69,22 +77,65 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate statistics
-    const highMatches = candidates.filter((c) => c.matchScore >= 80).length
-    const mediumMatches = candidates.filter((c) => c.matchScore >= 60 && c.matchScore < 80).length
-    const lowMatches = candidates.filter((c) => c.matchScore < 60).length
-    const averageScore = candidates.length > 0 ? Math.round(candidates.reduce((sum, c) => sum + c.matchScore, 0) / candidates.length) : 0
-    const topScore = candidates.length > 0 ? Math.max(...candidates.map((c) => c.matchScore)) : 0
+    const highMatches = apiCandidates.filter((c) => c.matchScore >= 80).length
+    const mediumMatches = apiCandidates.filter((c) => c.matchScore >= 60 && c.matchScore < 80).length
+    const lowMatches = apiCandidates.filter((c) => c.matchScore < 60).length
+    const averageScore = apiCandidates.length > 0 ? Math.round(apiCandidates.reduce((sum, c) => sum + c.matchScore, 0) / apiCandidates.length) : 0
+    const topScore = apiCandidates.length > 0 ? Math.max(...apiCandidates.map((c) => c.matchScore)) : 0
+
+    // PROVISION JOB AND PIPELINE CANDIDATES IN SUPABASE
+    const uid = user._id || (user as any).id;
+    const workspaceData = await getOrCreateWorkspace(uid, user.name);
+
+    if (workspaceData) {
+      // Create a dummy job to link the candidates
+      const { data: jobData, error: jobError } = await supabase
+        .from('jobs')
+        .insert({
+          workspace_id: workspaceData.workspace.id,
+          title: title,
+          description: jobDescription,
+          created_by: uid
+        })
+        .select()
+        .single();
+
+      if (!jobError && jobData) {
+        // Bulk insert candidates to pipeline
+        const candidateInserts = apiCandidates.map(c => ({
+          job_id: jobData.id,
+          workspace_id: workspaceData.workspace.id,
+          name: c.name,
+          email: c.email,
+          match_score: c.matchScore,
+          stage: 'Screened',
+          skills: c.skills,
+          resume_url: c.fileName,
+          raw_analysis: c.raw_analysis
+        }));
+
+        const { error: candidateError } = await supabase
+          .from('candidates')
+          .insert(candidateInserts);
+          
+        if (candidateError) {
+          console.error("Failed to insert pipeline candidates:", candidateError);
+        }
+      } else {
+        console.error("Failed to provision dummy job:", jobError);
+      }
+    }
 
     const analysis: Omit<Analysis, "_id"> = {
-      userId: user._id!.toString(),
+      userId: uid.toString(),
       title,
       jobDescription,
-      candidates,
+      candidates: apiCandidates,
       status: "completed",
       createdAt: new Date(),
       updatedAt: new Date(),
       statistics: {
-        totalCandidates: candidates.length,
+        totalCandidates: apiCandidates.length,
         highMatches,
         mediumMatches,
         lowMatches,

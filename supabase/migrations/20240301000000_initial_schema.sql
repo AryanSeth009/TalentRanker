@@ -40,7 +40,7 @@ create table candidates (
   anonymized_score integer,
   stage text default 'Screened' check (stage in ('Screened', 'Interview Scheduled', 'Final Round', 'Offer Extended', 'Rejected')),
   skills text[] default '{}',
-  current_role text,
+  "current_role" text,
   resume_url text,
   raw_analysis jsonb default '{}'::jsonb,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
