@@ -53,6 +53,7 @@ import Navigation from "./components/navigation";
 import { Candidate } from "@/lib/models";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
+import { useAuth } from "@/app/hooks/useAuth";
 import { generatePDF } from "@/app/utils/pdfGenerator";
 
 interface AnalysisResult {
@@ -74,6 +75,8 @@ export default function Home() {
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const biasAuditEnabled = useAppStore(state => state.biasAuditEnabled);
+  const setAuthDialogOpen = useAppStore(state => state.setAuthDialogOpen);
+  const { user } = useAuth();
   const [showResults, setShowResults] = useState(false);
   const [sortBy, setSortBy] = useState<"name" | "score">("score");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -94,6 +97,15 @@ export default function Home() {
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) {
+      setAuthDialogOpen(true);
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to upload files.",
+        variant: "destructive",
+      });
+      return;
+    }
     const selectedFiles = Array.from(event.target.files || []);
     const validFiles = selectedFiles.filter(
       (file) =>
@@ -148,6 +160,16 @@ export default function Home() {
   };
 
   const startAnalysis = async () => {
+    if (!user) {
+      setAuthDialogOpen(true);
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to run analysis.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (files.length === 0) {
       toast({
         title: "No files uploaded",
@@ -431,7 +453,12 @@ We offer competitive salary, excellent benefits, and the opportunity to work on 
                 className="bg-primary hover:bg-[#8e86ff] text-white px-10 h-14 rounded-2xl text-lg font-syne font-bold shadow-[0_0_30px_rgba(108,99,255,0.3)] transition-all hover:scale-105"
                 asChild
               >
-                <Link href="/pipeline">
+                <Link href="/pipeline" onClick={(e) => {
+                  if (!user) {
+                    e.preventDefault();
+                    setAuthDialogOpen(true);
+                  }
+                }}>
                   Open Pipeline <ChevronRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
@@ -441,7 +468,12 @@ We offer competitive salary, excellent benefits, and the opportunity to work on 
                 className="bg-white/5 border-white/10 hover:bg-white/10 px-10 h-14 rounded-2xl text-lg font-syne font-bold transition-all hover:scale-105"
                 asChild
               >
-                <Link href="/batch">
+                <Link href="/batch" onClick={(e) => {
+                  if (!user) {
+                    e.preventDefault();
+                    setAuthDialogOpen(true);
+                  }
+                }}>
                   Batch Process
                 </Link>
               </Button>
@@ -472,6 +504,12 @@ We offer competitive salary, excellent benefits, and the opportunity to work on 
                             multiple
                             accept=".pdf,.docx"
                             onChange={handleFileUpload}
+                            onClick={(e) => {
+                              if (!user) {
+                                e.preventDefault();
+                                setAuthDialogOpen(true);
+                              }
+                            }}
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                           />
                           <div className="flex flex-col items-center gap-4 transition-transform duration-300 group-hover:-translate-y-2">

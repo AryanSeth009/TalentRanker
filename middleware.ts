@@ -29,7 +29,7 @@ export function middleware(request: NextRequest) {
   // If there's no auth token and the user is trying to access a protected route
   if (!authToken) {
     // Redirect to the home page where they can sign in
-    const redirectUrl = new URL('/', request.url);
+    const redirectUrl = new URL('/?alert=login_required', request.url);
     return NextResponse.redirect(redirectUrl);
   }
 

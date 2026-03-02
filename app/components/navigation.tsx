@@ -26,10 +26,11 @@ import { useAuth } from "../hooks/useAuth"
 import { ThemeToggle } from "./theme-toggle"
 import { BiasAuditToggle } from "./BiasAuditToggle"
 import { useAppStore } from "@/lib/store"
+import { useToast } from "@/hooks/use-toast"
 
 export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [showAuthDialog, setShowAuthDialog] = useState(false)
+  const { isAuthDialogOpen, setAuthDialogOpen } = useAppStore()
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [authForm, setAuthForm] = useState({
     email: "",
@@ -41,6 +42,7 @@ export default function Navigation() {
   const [showNotifications, setShowNotifications] = useState(false)
 
   const { user, signIn, signUp, signOut } = useAuth()
+  const { toast } = useToast()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -49,6 +51,23 @@ export default function Navigation() {
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      if (urlParams.get('alert') === 'login_required') {
+        setAuthDialogOpen(true)
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to access that page.",
+          variant: "destructive",
+        })
+        
+        // Clean up the URL so it doesn't show again on refresh
+        window.history.replaceState({}, '', window.location.pathname)
+      }
+    }
+  }, [toast])
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,7 +86,7 @@ export default function Navigation() {
       }
 
       if (success) {
-        setShowAuthDialog(false)
+        setAuthDialogOpen(false)
         setIsMenuOpen(false)
         setAuthForm({ email: "", password: "", name: "" })
       }
@@ -225,7 +244,7 @@ export default function Navigation() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
+              <Dialog open={isAuthDialogOpen} onOpenChange={setAuthDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="rounded-full bg-primary hover:bg-[#8e86ff] text-white shadow-[0_0_20px_rgba(108,99,255,0.3)] transition-all duration-300 hover:shadow-[0_0_30px_rgba(108,99,255,0.5)] font-syne">
                     <User className="h-4 w-4 mr-2" />
@@ -362,7 +381,7 @@ export default function Navigation() {
                 ) : (
                   <Button
                     onClick={() => {
-                      setShowAuthDialog(true)
+                      setAuthDialogOpen(true)
                       setIsMenuOpen(false)
                     }}
                     className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl h-11"
